@@ -36,6 +36,11 @@ public class Habit {
     @Column(nullable = false)
     private LocalDate createdDate;
 
+    // Anonymous per-browser owner id (sent by the frontend in the X-Owner-Id header).
+    // Null on habits created before owners existed; those are hidden from everyone.
+    @Column(name = "owner_id", length = 64)
+    private String ownerId;
+
     @PrePersist
     void onCreate() {
         if (createdDate == null) createdDate = LocalDate.now();
@@ -53,6 +58,8 @@ public class Habit {
     public void setScheduledDates(Set<LocalDate> scheduledDates) { this.scheduledDates = scheduledDates; }
     public String getReminderTime() { return reminderTime; }
     public void setReminderTime(String reminderTime) { this.reminderTime = reminderTime; }
+    public String getOwnerId() { return ownerId; }
+    public void setOwnerId(String ownerId) { this.ownerId = ownerId; }
     public LocalDate getCreatedDate() { return createdDate; }
     public void setCreatedDate(LocalDate createdDate) { this.createdDate = createdDate; }
 }

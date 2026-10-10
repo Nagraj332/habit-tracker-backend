@@ -36,33 +36,34 @@ public class HabitService {
 
     // ---------- CRUD ----------
 
-    public List<HabitResponse> getAllHabits() {
-        return habitRepository.findAllByOrderByIdDesc().stream()
+    public List<HabitResponse> getAllHabits(String ownerId) {
+        return habitRepository.findByOwnerIdOrderByIdDesc(ownerId).stream()
                 .map(this::toResponse)
                 .toList();
     }
 
-    public HabitResponse getHabit(Long id) {
-        return toResponse(findHabit(id));
+    public HabitResponse getHabit(String ownerId, Long id) {
+        return toResponse(findHabit(ownerId, id));
     }
 
     @Transactional
-    public HabitResponse createHabit(HabitRequest request) {
+    public HabitResponse createHabit(String ownerId, HabitRequest request) {
         Habit habit = new Habit();
+        habit.setOwnerId(ownerId);
         apply(habit, request);
         return toResponse(habitRepository.save(habit));
     }
 
     @Transactional
-    public HabitResponse updateHabit(Long id, HabitRequest request) {
-        Habit habit = findHabit(id);
+    public HabitResponse updateHabit(String ownerId, Long id, HabitRequest request) {
+        Habit habit = findHabit(ownerId, id);
         apply(habit, request);
         return toResponse(habitRepository.save(habit));
     }
 
     @Transactional
-    public void deleteHabit(Long id) {
-        Habit habit = findHabit(id);
+    public void deleteHabit(String ownerId, Long id) {
+        Habit habit = findHabit(ownerId, id);
         logRepository.deleteByHabitId(id);
         habitRepository.delete(habit);
     }
@@ -71,8 +72,8 @@ public class HabitService {
 
     /** Marks the habit done for the date, or un-marks it if it was already done. */
     @Transactional
-    public HabitResponse toggleCompletion(Long id, LocalDate date) {
-        Habit habit = findHabit(id);
+    public HabitResponse toggleCompletion(String ownerId, Long id, LocalDate date) {
+        Habit habit = findHabit(ownerId, id);
         LocalDate target = (date != null) ? date : LocalDate.now();
 
         if (target.isAfter(LocalDate.now())) {
@@ -95,8 +96,8 @@ public class HabitService {
     }
 
     /** Completed dates in a range (used to draw the calendar / heatmap). */
-    public List<LocalDate> getCompletedDates(Long id, LocalDate from, LocalDate to) {
-        findHabit(id);
+    public List<LocalDate> getCompletedDates(String ownerId, Long id, LocalDate from, LocalDate to) {
+        findHabit(ownerId, id);
         LocalDate end = (to != null) ? to : LocalDate.now();
         LocalDate start = (from != null) ? from : end.minusDays(364);
         if (start.isAfter(end)) {
@@ -108,8 +109,8 @@ public class HabitService {
 
     // ---------- Stats ----------
 
-    public HabitStats getStats(Long id) {
-        Habit habit = findHabit(id);
+    public HabitStats getStats(String ownerId, Long id) {
+        Habit habit = findHabit(ownerId, id);
         TreeSet<LocalDate> dates = loadDates(id);
         LocalDate today = LocalDate.now();
 
@@ -128,8 +129,8 @@ public class HabitService {
 
     // ---------- Helpers ----------
 
-    private Habit findHabit(Long id) {
-        return habitRepository.findById(id)
+    private Habit findHabit(String ownerId, Long id) {
+        return habitRepository.findByIdAndOwnerId(id, ownerId)
                 .orElseThrow(() -> new ResourceNotFoundException("Habit not found with id " + id));
     }
 

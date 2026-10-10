@@ -27,6 +27,11 @@ public class Walk {
     @Column(length = 10)
     private String activityType;
 
+    @Column(name = "owner_id", length = 64)
+    private String ownerId;
+
+    public String getOwnerId() { return ownerId; }
+    public void setOwnerId(String ownerId) { this.ownerId = ownerId; }
     public Long getId() { return id; }
     public Long getHabitId() { return habitId; }
     public void setHabitId(Long habitId) { this.habitId = habitId; }
