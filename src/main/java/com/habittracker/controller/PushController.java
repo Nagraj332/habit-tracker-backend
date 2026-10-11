@@ -6,6 +6,7 @@ import com.habittracker.exception.ResourceNotFoundException;
 import com.habittracker.model.Habit;
 import com.habittracker.model.PushSubscription;
 import com.habittracker.model.ReminderState;
+import com.habittracker.push.ReminderScheduler;
 import com.habittracker.push.VapidService;
 import com.habittracker.push.WebPushSender;
 import com.habittracker.repository.HabitLogRepository;
@@ -19,11 +20,16 @@ import org.springframework.web.bind.annotation.*;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.HexFormat;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -50,12 +56,13 @@ public class PushController {
     private final HabitLogRepository logs;
     private final HabitService habitService;
     private final WebPushSender sender;
+    private final ReminderScheduler scheduler;
     private final ObjectMapper mapper;
     private final Map<String, Instant> lastTest = new ConcurrentHashMap<>();
 
     public PushController(VapidService vapid, PushSubscriptionRepository subscriptions, ReminderStateRepository states,
                           HabitRepository habits, HabitLogRepository logs, HabitService habitService,
-                          WebPushSender sender, ObjectMapper mapper) {
+                          WebPushSender sender, ReminderScheduler scheduler, ObjectMapper mapper) {
         this.vapid = vapid;
         this.subscriptions = subscriptions;
         this.states = states;
@@ -63,6 +70,7 @@ public class PushController {
         this.logs = logs;
         this.habitService = habitService;
         this.sender = sender;
+        this.scheduler = scheduler;
         this.mapper = mapper;
     }
 
@@ -171,12 +179,51 @@ public class PushController {
                 "tag", "test-alarm")).getBytes(StandardCharsets.UTF_8);
 
         int sent = 0;
+        int devices = 0;
         for (PushSubscription s : subscriptions.findByOwnerId(ownerId)) {
             int status = sender.send(s, payload, 60);
-            if (WebPushSender.isGone(status)) subscriptions.delete(s);
-            else if (status >= 200 && status < 300) sent++;
+            if (WebPushSender.isGone(status)) {
+                subscriptions.delete(s);
+                continue;
+            }
+            devices++;
+            if (status >= 200 && status < 300) sent++;
         }
-        return Map.of("sent", sent);
+        // devices = registered phones/browsers that could be tried, sent = how many the push service accepted
+        return Map.of("sent", sent, "devices", devices);
+    }
+
+    /** Small health report for the Reminders page: is this device registered, and is the server running its reminder job? */
+    @GetMapping("/status")
+    public Map<String, Object> status(@RequestHeader(value = "X-Owner-Id", required = false) String owner,
+                                      @RequestParam(required = false) String tz) {
+        String ownerId = OwnerIds.require(owner);
+        ZoneId zone = zoneFor(ownerId, tz);
+        Instant last = ReminderScheduler.lastRun();
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("devices", subscriptions.countByOwnerId(ownerId));
+        out.put("timezone", zone.getId());
+        out.put("serverTime", ZonedDateTime.now(zone).format(DateTimeFormatter.ofPattern("HH:mm")));
+        out.put("lastCheckSeconds", last == null ? null : Duration.between(last, Instant.now()).getSeconds());
+        return out;
+    }
+
+    /** Habits whose alarm has rung and is still waiting for the user (used to pop the alarm up when the app is opened). */
+    @GetMapping("/ringing")
+    public List<Long> ringing(@RequestHeader(value = "X-Owner-Id", required = false) String owner,
+                              @RequestParam(required = false) String tz) {
+        String ownerId = OwnerIds.require(owner);
+        ZoneId zone = zoneFor(ownerId, tz);
+        LocalDate today = LocalDate.now(zone);
+        Instant now = Instant.now();
+        List<Long> ids = new ArrayList<>();
+        for (ReminderState state : states.findByOwnerIdAndDay(ownerId, today)) {
+            if (!scheduler.isRinging(state, now)) continue;
+            if (logs.findByHabitIdAndLogDate(state.getHabitId(), today).isPresent()) continue;
+            if (!habits.existsByIdAndOwnerId(state.getHabitId(), ownerId)) continue;
+            ids.add(state.getHabitId());
+        }
+        return ids;
     }
 
     // ---------- helpers ----------
