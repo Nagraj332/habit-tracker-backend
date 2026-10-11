@@ -47,17 +47,10 @@ public class ReminderScheduler {
     private final Duration window;
     private Instant lastCleanup = Instant.EPOCH;
 
-    // when the reminder job last ran (shown on the Reminders page, so a sleeping server is easy to spot)
-    private static volatile Instant lastRun;
-
-    public static Instant lastRun() {
-        return lastRun;
-    }
-
     public ReminderScheduler(PushSubscriptionRepository subscriptions, HabitRepository habits, HabitLogRepository logs,
                              ReminderStateRepository states, WebPushSender sender, ObjectMapper mapper,
-                             @Value("${app.reminder.max-repeats:180}") int maxRepeats,
-                             @Value("${app.reminder.window-minutes:180}") int windowMinutes) {
+                             @Value("${app.reminder.max-repeats:30}") int maxRepeats,
+                             @Value("${app.reminder.window-minutes:45}") int windowMinutes) {
         this.subscriptions = subscriptions;
         this.habits = habits;
         this.logs = logs;
@@ -68,26 +61,14 @@ public class ReminderScheduler {
         this.window = Duration.ofMinutes(windowMinutes);
     }
 
-    // first run 5 seconds after start-up, so a server that was just woken up sends overdue alarms straight away
-    @Scheduled(fixedDelay = 60_000, initialDelay = 5_000)
+    @Scheduled(fixedDelay = 60_000, initialDelay = 30_000)
     public void run() {
         try {
             tick(Instant.now());
             cleanup(Instant.now());
         } catch (Exception e) {
             log.warn("Reminder run failed", e);
-        } finally {
-            lastRun = Instant.now();
         }
-    }
-
-    /** True while an alarm has rung, nobody has stopped it, and it is still inside its ringing window. */
-    public boolean isRinging(ReminderState state, Instant now) {
-        return !state.isStopped()
-                && state.getSentCount() > 0
-                && state.getSentCount() < maxRepeats
-                && !now.isBefore(state.getStartAt())
-                && !now.isAfter(state.getStartAt().plus(window));
     }
 
     private void tick(Instant now) {

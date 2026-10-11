@@ -11,6 +11,4 @@ public interface ReminderStateRepository extends JpaRepository<ReminderState, Lo
     Optional<ReminderState> findByHabitIdAndDay(Long habitId, LocalDate day);
 
     List<ReminderState> findByDayBefore(LocalDate day);
-
-    List<ReminderState> findByOwnerIdAndDay(String ownerId, LocalDate day);
 }
