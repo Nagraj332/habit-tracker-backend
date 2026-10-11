@@ -18,8 +18,7 @@ public record HabitRequest(
         @Pattern(regexp = "^#[0-9a-fA-F]{6}$", message = "Color must be a hex value like #4CAF50")
         String color,
 
-        @NotBlank(message = "Reminder time is required")
-        @Pattern(regexp = "^([01]\\d|2[0-3]):[0-5]\\d$", message = "Reminder must be a time like 07:30")
+        @Pattern(regexp = "^$|^([01]\\d|2[0-3]):[0-5]\\d$", message = "Reminder must be a time like 07:30")
         String reminderTime,
 
         // Day the habit starts (may be in the future). Null means today.
