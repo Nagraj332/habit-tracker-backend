@@ -13,6 +13,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Optional;
@@ -37,8 +39,15 @@ public class HabitService {
     // ---------- CRUD ----------
 
     public List<HabitResponse> getAllHabits(String ownerId) {
-        return habitRepository.findByOwnerIdOrderByIdDesc(ownerId).stream()
-                .map(this::toResponse)
+        List<Habit> list = habitRepository.findByOwnerIdOrderByIdDesc(ownerId);
+        if (list.isEmpty()) return List.of();
+        // one query for every check-in, instead of one query per habit
+        Map<Long, TreeSet<LocalDate>> byHabit = new HashMap<>();
+        for (HabitLog log : logRepository.findByHabitIdIn(list.stream().map(Habit::getId).toList())) {
+            byHabit.computeIfAbsent(log.getHabit().getId(), k -> new TreeSet<>()).add(log.getLogDate());
+        }
+        return list.stream()
+                .map(h -> toResponse(h, byHabit.getOrDefault(h.getId(), new TreeSet<>())))
                 .toList();
     }
 
@@ -76,7 +85,7 @@ public class HabitService {
         Habit habit = findHabit(ownerId, id);
         LocalDate target = (date != null) ? date : LocalDate.now();
 
-        if (target.isAfter(LocalDate.now())) {
+        if (target.isAfter(LocalDate.now().plusDays(1))) {
             throw new IllegalArgumentException("Cannot mark a habit for a future date");
         }
         if (target.isBefore(habit.getCreatedDate())) {
@@ -159,7 +168,10 @@ public class HabitService {
     }
 
     private HabitResponse toResponse(Habit habit) {
-        TreeSet<LocalDate> dates = loadDates(habit.getId());
+        return toResponse(habit, loadDates(habit.getId()));
+    }
+
+    private HabitResponse toResponse(Habit habit, TreeSet<LocalDate> dates) {
         return new HabitResponse(
                 habit.getId(),
                 habit.getName(),
