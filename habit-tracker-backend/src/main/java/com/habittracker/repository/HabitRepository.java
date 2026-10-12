@@ -1,18 +1,15 @@
 package com.habittracker.repository;
 
-import com.habittracker.model.Habit;
-import org.springframework.data.jpa.repository.EntityGraph;
-import org.springframework.data.jpa.repository.JpaRepository;
-
 import java.util.List;
 import java.util.Optional;
 
+import org.springframework.data.jpa.repository.JpaRepository;
+
+import com.habittracker.model.Habit;
+
 public interface HabitRepository extends JpaRepository<Habit, Long> {
-    // loads the scheduled dates in the same query (no extra query per habit)
-    @EntityGraph(attributePaths = "scheduledDates")
-    List<Habit> findByOwnerIdOrderByIdDesc(String ownerId);
+
+    List<Habit> findByOwnerIdOrderByIdAsc(String ownerId);
 
     Optional<Habit> findByIdAndOwnerId(Long id, String ownerId);
-
-    boolean existsByIdAndOwnerId(Long id, String ownerId);
 }

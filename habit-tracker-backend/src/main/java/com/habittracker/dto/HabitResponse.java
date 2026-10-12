@@ -8,9 +8,10 @@ public record HabitResponse(
         String name,
         String description,
         String color,
-        LocalDate createdDate,
         String reminderTime,
+        LocalDate startDate,
+        LocalDate createdDate,
         List<LocalDate> scheduledDates,
         boolean completedToday,
-        int currentStreak
-) {}
+        int currentStreak) {
+}

@@ -1,35 +1,39 @@
 package com.habittracker.model;
 
-import jakarta.persistence.*;
 import java.time.LocalDate;
 
-/** One row = habit was completed on that date. */
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
+
+/** One row = the habit was done on that day. */
 @Entity
 @Table(name = "habit_logs",
-       uniqueConstraints = @UniqueConstraint(columnNames = {"habit_id", "log_date"}))
+        uniqueConstraints = @UniqueConstraint(name = "uk_habit_log_day", columnNames = {"habit_id", "log_date"}))
 public class HabitLog {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "habit_id")
-    private Habit habit;
+    @Column(name = "habit_id", nullable = false)
+    private Long habitId;
 
     @Column(name = "log_date", nullable = false)
     private LocalDate logDate;
 
-    public HabitLog() {}
+    protected HabitLog() {}
 
-    public HabitLog(Habit habit, LocalDate logDate) {
-        this.habit = habit;
+    public HabitLog(Long habitId, LocalDate logDate) {
+        this.habitId = habitId;
         this.logDate = logDate;
     }
 
     public Long getId() { return id; }
-    public Habit getHabit() { return habit; }
-    public void setHabit(Habit habit) { this.habit = habit; }
+    public Long getHabitId() { return habitId; }
     public LocalDate getLogDate() { return logDate; }
-    public void setLogDate(LocalDate logDate) { this.logDate = logDate; }
 }

@@ -1,23 +1,30 @@
 package com.habittracker.repository;
 
-import com.habittracker.model.HabitLog;
-import org.springframework.data.jpa.repository.JpaRepository;
-
 import java.time.LocalDate;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+
+import com.habittracker.model.HabitLog;
+
 public interface HabitLogRepository extends JpaRepository<HabitLog, Long> {
+
+    List<HabitLog> findByHabitIdIn(Collection<Long> habitIds);
 
     Optional<HabitLog> findByHabitIdAndLogDate(Long habitId, LocalDate logDate);
 
-    List<HabitLog> findByHabitIdOrderByLogDateAsc(Long habitId);
+    @Query("select l.logDate from HabitLog l where l.habitId = :habitId")
+    List<LocalDate> findDatesByHabitId(@Param("habitId") Long habitId);
 
-    List<HabitLog> findByHabitIdAndLogDateBetweenOrderByLogDateAsc(Long habitId, LocalDate from, LocalDate to);
+    @Query("select l.logDate from HabitLog l where l.habitId = :habitId and l.logDate between :from and :to order by l.logDate")
+    List<LocalDate> findDatesBetween(@Param("habitId") Long habitId, @Param("from") LocalDate from, @Param("to") LocalDate to);
 
-    // all check-ins of several habits in one query
-    List<HabitLog> findByHabitIdIn(Collection<Long> habitIds);
-
-    void deleteByHabitId(Long habitId);
+    @Modifying
+    @Query("delete from HabitLog l where l.habitId = :habitId")
+    void deleteAllByHabit(@Param("habitId") Long habitId);
 }
