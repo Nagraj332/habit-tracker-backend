@@ -6,7 +6,7 @@ public record WalkResponse(
         Long id,
         Long habitId,
         LocalDate walkDate,
-        int distanceMeters,
-        int durationSeconds,
-        String activityType) {
-}
+        double distanceMeters,
+        long durationSeconds,
+        String activityType
+) {}

@@ -1,35 +1,17 @@
 package com.habittracker.model;
 
+import jakarta.persistence.*;
 import java.time.LocalDate;
-import java.util.LinkedHashSet;
+import java.util.HashSet;
 import java.util.Set;
 
-import org.hibernate.annotations.Fetch;
-import org.hibernate.annotations.FetchMode;
-
-import jakarta.persistence.CollectionTable;
-import jakarta.persistence.Column;
-import jakarta.persistence.ElementCollection;
-import jakarta.persistence.Entity;
-import jakarta.persistence.FetchType;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.Index;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.OrderBy;
-import jakarta.persistence.Table;
-
 @Entity
-@Table(name = "habits", indexes = @Index(name = "idx_habits_owner", columnList = "owner_id"))
+@Table(name = "habits")
 public class Habit {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-
-    @Column(name = "owner_id", nullable = false, length = 64)
-    private String ownerId;
 
     @Column(nullable = false, length = 100)
     private String name;
@@ -37,37 +19,47 @@ public class Habit {
     @Column(length = 255)
     private String description;
 
+    // Hex color used by the frontend, e.g. "#4CAF50"
     @Column(length = 20)
     private String color;
 
-    /** "HH:mm", or null when there is no reminder. */
-    @Column(name = "reminder_time", length = 5)
+    // Daily reminder as "HH:mm" (24-hour clock), or null when no reminder is set
+    @Column(length = 5)
     private String reminderTime;
 
-    /** For a daily habit: the day it starts. Otherwise the day it was created. */
-    @Column(name = "created_date", nullable = false)
+    // Specific days this habit is scheduled on. Empty means "every day from createdDate".
+    @ElementCollection(fetch = FetchType.EAGER)
+    @CollectionTable(name = "habit_dates", joinColumns = @JoinColumn(name = "habit_id"))
+    @Column(name = "scheduled_date")
+    private Set<LocalDate> scheduledDates = new HashSet<>();
+
+    @Column(nullable = false)
     private LocalDate createdDate;
 
-    /** Empty = a daily habit. Otherwise the habit is only due on these days. */
-    @ElementCollection(fetch = FetchType.EAGER)
-    @CollectionTable(name = "habit_scheduled_dates", joinColumns = @JoinColumn(name = "habit_id"))
-    @Column(name = "scheduled_date", nullable = false)
-    @OrderBy
-    @Fetch(FetchMode.SUBSELECT)
-    private Set<LocalDate> scheduledDates = new LinkedHashSet<>();
+    // Anonymous per-browser owner id (sent by the frontend in the X-Owner-Id header).
+    // Null on habits created before owners existed; those are hidden from everyone.
+    @Column(name = "owner_id", length = 64)
+    private String ownerId;
+
+    @PrePersist
+    void onCreate() {
+        if (createdDate == null) createdDate = LocalDate.now();
+    }
 
     public Long getId() { return id; }
-    public String getOwnerId() { return ownerId; }
-    public void setOwnerId(String ownerId) { this.ownerId = ownerId; }
+    public void setId(Long id) { this.id = id; }
     public String getName() { return name; }
     public void setName(String name) { this.name = name; }
     public String getDescription() { return description; }
     public void setDescription(String description) { this.description = description; }
     public String getColor() { return color; }
     public void setColor(String color) { this.color = color; }
+    public Set<LocalDate> getScheduledDates() { return scheduledDates; }
+    public void setScheduledDates(Set<LocalDate> scheduledDates) { this.scheduledDates = scheduledDates; }
     public String getReminderTime() { return reminderTime; }
     public void setReminderTime(String reminderTime) { this.reminderTime = reminderTime; }
+    public String getOwnerId() { return ownerId; }
+    public void setOwnerId(String ownerId) { this.ownerId = ownerId; }
     public LocalDate getCreatedDate() { return createdDate; }
     public void setCreatedDate(LocalDate createdDate) { this.createdDate = createdDate; }
-    public Set<LocalDate> getScheduledDates() { return scheduledDates; }
 }
