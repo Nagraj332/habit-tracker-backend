@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import java.time.LocalDate;
 import java.util.Set;
 
+import com.habittracker.dto.HabitStats;
 import org.junit.jupiter.api.Test;
 
 import com.habittracker.dto.StatsResponse;
