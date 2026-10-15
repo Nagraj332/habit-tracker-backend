@@ -205,6 +205,7 @@ public class PushController {
         out.put("timezone", zone.getId());
         out.put("serverTime", ZonedDateTime.now(zone).format(DateTimeFormatter.ofPattern("HH:mm")));
         out.put("lastCheckSeconds", last == null ? null : Duration.between(last, Instant.now()).getSeconds());
+        out.put("lastAlarm", ReminderScheduler.lastAlarm(ownerId));
         return out;
     }
 

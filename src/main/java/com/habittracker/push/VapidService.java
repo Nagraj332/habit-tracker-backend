@@ -25,7 +25,7 @@ public class VapidService {
     public VapidService(VapidKeyRepository repo,
                         @Value("${VAPID_PUBLIC_KEY:}") String envPublic,
                         @Value("${VAPID_PRIVATE_KEY:}") String envPrivate,
-                        @Value("${VAPID_SUBJECT:mailto:habit-tracker@example.com}") String subject) {
+                        @Value("${VAPID_SUBJECT:${RENDER_EXTERNAL_URL:mailto:habit-tracker@example.com}}") String subject) {
         this.repo = repo;
         this.envPublic = envPublic;
         this.envPrivate = envPrivate;

@@ -20,11 +20,14 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 
 /**
  * Runs every minute. For each habit whose reminder time has come and that is not done yet,
@@ -45,6 +48,7 @@ public class ReminderScheduler {
     private final ObjectMapper mapper;
     private final int maxRepeats;
     private final Duration window;
+    private final boolean enabled; // set app.reminder.enabled=false to switch the server alarms off
     private Instant lastCleanup = Instant.EPOCH;
 
     // when the reminder job last ran (shown on the Reminders page, so a sleeping server is easy to spot)
@@ -54,10 +58,18 @@ public class ReminderScheduler {
         return lastRun;
     }
 
+    // the most recent alarm sent for each owner and what the push service answered (shown on the Reminders page)
+    private static final Map<String, String> lastAlarm = new ConcurrentHashMap<>();
+
+    public static String lastAlarm(String owner) {
+        return lastAlarm.get(owner);
+    }
+
     public ReminderScheduler(PushSubscriptionRepository subscriptions, HabitRepository habits, HabitLogRepository logs,
                              ReminderStateRepository states, WebPushSender sender, ObjectMapper mapper,
                              @Value("${app.reminder.max-repeats:180}") int maxRepeats,
-                             @Value("${app.reminder.window-minutes:180}") int windowMinutes) {
+                             @Value("${app.reminder.window-minutes:180}") int windowMinutes,
+                             @Value("${app.reminder.enabled:true}") boolean enabled) {
         this.subscriptions = subscriptions;
         this.habits = habits;
         this.logs = logs;
@@ -66,13 +78,22 @@ public class ReminderScheduler {
         this.mapper = mapper;
         this.maxRepeats = maxRepeats;
         this.window = Duration.ofMinutes(windowMinutes);
+        this.enabled = enabled;
     }
 
     // first run 5 seconds after start-up, so a server that was just woken up sends overdue alarms straight away
     @Scheduled(fixedDelay = 60_000, initialDelay = 5_000)
     public void run() {
+        if (!enabled) return;
         try {
-            tick(Instant.now());
+            try {
+                tick(Instant.now());
+            } catch (Exception first) {
+                // a database connection that went stale while the server slept: one quick retry on a fresh connection
+                log.warn("Reminder run failed, retrying once: {}", first.toString());
+                Thread.sleep(3000);
+                tick(Instant.now());
+            }
             cleanup(Instant.now());
         } catch (Exception e) {
             log.warn("Reminder run failed", e);
@@ -144,13 +165,18 @@ public class ReminderScheduler {
         message.put("count", state.getSentCount() + 1);
         byte[] payload = mapper.writeValueAsString(message).getBytes(StandardCharsets.UTF_8);
 
+        List<Integer> statuses = new ArrayList<>();
         for (PushSubscription device : new ArrayList<>(devices)) {
             int status = sender.send(device, payload, 120);
+            statuses.add(status);
             if (WebPushSender.isGone(status)) {
                 subscriptions.delete(device);
                 devices.remove(device);
             }
         }
+        String answers = statuses.stream().map(String::valueOf).collect(Collectors.joining(", "));
+        log.info("Alarm #{} for habit {} sent, push service answered {}", state.getSentCount() + 1, habit.getId(), answers);
+        lastAlarm.put(owner, now.atZone(zone).format(DateTimeFormatter.ofPattern("HH:mm")) + " for " + habit.getName() + ", push service answered " + answers);
 
         state.setSentCount(state.getSentCount() + 1);
         state.setLastSentAt(now);
